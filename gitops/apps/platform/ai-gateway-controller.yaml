@@ -1,0 +1,45 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ai-gateway-controller
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: docker.io/envoyproxy
+    chart: ai-gateway-helm
+    targetRevision: v1.1.0
+    helm:
+      releaseName: ai-gateway
+      valuesObject:
+        controller:
+          nodeSelector:
+            workload: platform
+          # ------ Workaround for theagentrouter/agent-router#2600: the default request-header
+          # ------ metadata filter walks every listener and aborts on the TCP (SSH) one. An
+          # ------ empty value skips that filter so the Gateway can carry both listeners.
+          logRequestHeaderAttributes: ""
+          # ------ The chart's embedded webhook certificate is regenerated at every render, so
+          # ------ Argo CD syncs drift it away from the one the controller loaded; cert-manager
+          # ------ issues a stable one instead.
+          mutatingWebhook:
+            certManager:
+              enable: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: envoy-ai-gateway-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

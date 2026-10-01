@@ -1,0 +1,78 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: tempo
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            argocd.argoproj.io/secret-type: cluster
+  template:
+    metadata:
+      name: tempo
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: default
+      source:
+        repoURL: https://grafana-community.github.io/helm-charts
+        chart: tempo
+        targetRevision: 2.3.0
+        helm:
+          releaseName: tempo
+          valuesObject:
+            nodeSelector:
+              workload: platform
+            serviceAccount:
+              create: true
+              name: tempo
+            tempo:
+              retention: 168h
+              storage:
+                trace:
+                  backend: s3
+                  s3:
+                    bucket: '{{ .metadata.annotations.tempo_bucket }}'
+                    endpoint: 's3.{{ .metadata.annotations.region }}.amazonaws.com'
+                    region: '{{ .metadata.annotations.region }}'
+                  wal:
+                    path: /var/tempo/wal
+              receivers:
+                otlp:
+                  protocols:
+                    grpc:
+                      endpoint: 0.0.0.0:4317
+                    http:
+                      endpoint: 0.0.0.0:4318
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 512Mi
+                limits:
+                  memory: 1Gi
+            persistence:
+              enabled: true
+              enableStatefulSetAutoDeletePVC: true
+              storageClassName: gp3
+              size: 10Gi
+            serviceMonitor:
+              enabled: true
+      destination:
+        server: '{{ .server }}'
+        namespace: observability
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+        retry:
+          limit: 5
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 5m

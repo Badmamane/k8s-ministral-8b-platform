@@ -1,0 +1,5 @@
+apiVersion: v2
+name: observability-manifests
+description: Plain Kubernetes objects of the observability group, templated with environment values
+type: application
+version: 0.1.0

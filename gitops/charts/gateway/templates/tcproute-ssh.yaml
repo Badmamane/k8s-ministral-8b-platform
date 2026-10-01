@@ -1,0 +1,32 @@
+{{- if .Values.sshPassthrough }}
+# ------ Slurm login over the same NLB: listener 22 -> login Service in the slurm namespace.
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: TCPRoute
+metadata:
+  name: ssh
+  namespace: gateway
+spec:
+  parentRefs:
+    - name: edge
+      sectionName: ssh
+  rules:
+    - backendRefs:
+        - name: {{ .Values.sshBackendService }}
+          namespace: {{ .Values.sshBackendNamespace }}
+          port: 22
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: gateway-to-slurm-login
+  namespace: {{ .Values.sshBackendNamespace }}
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: TCPRoute
+      namespace: gateway
+  to:
+    - group: ""
+      kind: Service
+      name: {{ .Values.sshBackendService }}
+{{- end }}

@@ -1,0 +1,43 @@
+apiVersion: aigateway.envoyproxy.io/v1beta1
+kind: AIGatewayRoute
+metadata:
+  name: ministral
+  namespace: gateway
+spec:
+  parentRefs:
+    - name: edge
+      kind: Gateway
+      group: gateway.networking.k8s.io
+      sectionName: https
+  rules:
+    - matches:
+        - headers:
+            - type: Exact
+              name: x-ai-eg-model
+              value: {{ .Values.model | quote }}
+      backendRefs:
+        - name: ministral
+---
+apiVersion: aigateway.envoyproxy.io/v1beta1
+kind: AIServiceBackend
+metadata:
+  name: ministral
+  namespace: gateway
+spec:
+  schema:
+    name: OpenAI
+  backendRef:
+    name: ministral
+    kind: Backend
+    group: gateway.envoyproxy.io
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: Backend
+metadata:
+  name: ministral
+  namespace: gateway
+spec:
+  endpoints:
+    - fqdn:
+        hostname: {{ .Values.backendHost | quote }}
+        port: {{ .Values.backendPort }}

@@ -1,0 +1,170 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: slurm
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            argocd.argoproj.io/secret-type: cluster
+  template:
+    metadata:
+      name: slurm
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: default
+      source:
+        repoURL: ghcr.io/slinkyproject/charts
+        chart: slurm
+        targetRevision: 1.2.2
+        helm:
+          releaseName: slurm
+          parameters:
+            - name: accounting.storageConfig.host
+              value: '{{ .metadata.annotations.rds_host }}'
+            - name: accounting.storageConfig.port
+              value: '{{ .metadata.annotations.rds_port }}'
+          valuesObject:
+            clusterName: '{{ .metadata.annotations.cluster_name }}'
+            configFiles:
+              gres.conf: |
+                AutoDetect=nvidia
+            controller:
+              # ------ No PVC for slurmctld state: the Slinky Controller has no PVC retention
+              # ------ policy and every destroy left a volume behind. Dev accepts losing the
+              # ------ queue on a controller restart; accounting lives in RDS.
+              persistence:
+                enabled: false
+              extraConfMap:
+                GresTypes:
+                  - gpu
+                AccountingStorageTRES:
+                  - gres/gpu
+              podSpec:
+                nodeSelector:
+                  workload: platform
+            restapi:
+              podSpec:
+                nodeSelector:
+                  workload: platform
+            accounting:
+              enabled: true
+              external: false
+              # ------ RDS for MariaDB enforces TLS (require_secure_transport=ON): the
+              # ------ regional RDS CA bundle is fetched at start-up and slurmdbd verifies
+              # ------ the server certificate against it.
+              extraConf: |
+                StorageParameters=SSL_CA=/etc/rds/ca-bundle.pem
+              storageConfig:
+                database: slurm_acct_db
+                username: slurm
+                passwordKeyRef:
+                  name: slurmdbd-db
+                  key: password
+              slurmdbd:
+                volumeMounts:
+                  - name: rds-ca
+                    mountPath: /etc/rds
+                    readOnly: true
+              podSpec:
+                nodeSelector:
+                  workload: platform
+                initContainers:
+                  - name: rds-ca
+                    image: public.ecr.aws/docker/library/alpine:3.22
+                    command:
+                      - wget
+                      - -qO
+                      - /etc/rds/ca-bundle.pem
+                      - 'https://truststore.pki.rds.amazonaws.com/{{ .metadata.annotations.region }}/{{ .metadata.annotations.region }}-bundle.pem'
+                    volumeMounts:
+                      - name: rds-ca
+                        mountPath: /etc/rds
+                volumes:
+                  - name: rds-ca
+                    emptyDir: {}
+            loginsets:
+              login:
+                replicas: 1
+                rootSshAuthorizedKeys: |
+                  # ------ Replace with the public key allowed to reach the login pod as root.
+                  ssh-ed25519 <your-public-key>                podSpec:
+                  nodeSelector:
+                    workload: platform
+                # ------ SSH reaches the login pod through the platform edge (Gateway listener 22);
+                # ------ the Service stays internal.
+                service:
+                  # ------ Non-empty on purpose: server-side apply drops an empty map and the
+                  # ------ Slinky CRD then rejects metadata as null.
+                  metadata:
+                    annotations:
+                      k8s-ministral-8b/exposure: edge-tcproute
+                  spec:
+                    type: ClusterIP
+            nodesets:
+              gpu:
+                replicas: 0
+                extraConfMap:
+                  Gres:
+                    - gpu:1
+                slurmd:
+                  resources:
+                    limits:
+                      nvidia.com/gpu: 1
+                podSpec:
+                  nodeSelector:
+                    workload: gpu
+                  tolerations:
+                    - key: nvidia.com/gpu
+                      operator: Exists
+                      effect: NoSchedule
+                partition:
+                  enabled: true
+                  configMap:
+                    Default: "YES"
+                    MaxTime: "12:00:00"
+                    State: UP
+            partitions:
+              all:
+                enabled: false
+            vendor:
+              nvidia:
+                dcgm:
+                  enabled: true
+      destination:
+        server: '{{ .server }}'
+        namespace: slurm
+      # ------ The chart keeps existing auth keys through Helm lookup, which Argo CD
+      # ------ cannot evaluate, so every render proposes new random keys; keep the live ones.
+      ignoreDifferences:
+        - kind: Secret
+          name: slurm-auth-slurm
+          jsonPointers:
+            - /data
+        - kind: Secret
+          name: slurm-auth-jwt
+          jsonPointers:
+            - /data
+        - group: slinky.slurm.net
+          kind: NodeSet
+          jsonPointers:
+            - /spec/replicas
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+          - RespectIgnoreDifferences=true
+        retry:
+          limit: 5
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 5m

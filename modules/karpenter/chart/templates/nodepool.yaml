@@ -1,0 +1,36 @@
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: gpu
+spec:
+  template:
+    metadata:
+      labels:
+        workload: gpu
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: gpu
+      requirements:
+        - key: karpenter.k8s.aws/instance-family
+          operator: In
+          values: {{ toJson .Values.families }}
+        - key: karpenter.k8s.aws/instance-size
+          operator: In
+          values: {{ toJson .Values.sizes }}
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: {{ toJson .Values.capacityTypes }}
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+      taints:
+        - key: nvidia.com/gpu
+          effect: NoSchedule
+      expireAfter: {{ .Values.expireAfter }}
+  limits:
+    nvidia.com/gpu: {{ .Values.gpuLimit }}
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: {{ .Values.consolidateAfter }}

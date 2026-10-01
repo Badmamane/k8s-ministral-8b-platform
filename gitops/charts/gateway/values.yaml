@@ -1,0 +1,14 @@
+# ------ Supplied by the ApplicationSet from the in-cluster Secret.
+ingressSecurityGroupId: ""
+secretsPrefix: ""
+# ------ Inference backend (Dynamo frontend) and the model name clients must send.
+model: mistralai/Ministral-3-8B-Instruct-2512
+backendHost: ministral-frontend.inference.svc.cluster.local
+backendPort: 8000
+# ------ Slurm login (SSH) behind the same edge. Needs the logRequestHeaderAttributes
+# ------ workaround on the Agent Router controller (theagentrouter/agent-router#2600).
+sshPassthrough: true
+sshBackendService: slurm-login-login
+sshBackendNamespace: slurm
+# ------ Per-client token budget (input + output tokens) per hour.
+tokensPerHour: 2000000

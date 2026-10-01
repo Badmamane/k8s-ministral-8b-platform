@@ -1,0 +1,117 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 90.0.0
+    helm:
+      releaseName: kube-prometheus-stack
+      valuesObject:
+        fullnameOverride: kps
+        defaultRules:
+          create: true
+        alertmanager:
+          enabled: false
+        prometheus:
+          prometheusSpec:
+            nodeSelector:
+              workload: platform
+            retention: 7d
+            retentionSize: 15GB
+            persistentVolumeClaimRetentionPolicy:
+              whenDeleted: Delete
+              whenScaled: Retain
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: gp3
+                  resources:
+                    requests:
+                      storage: 20Gi
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
+            probeSelectorNilUsesHelmValues: false
+            ruleSelectorNilUsesHelmValues: false
+            resources:
+              requests:
+                cpu: 200m
+                memory: 1Gi
+              limits:
+                memory: 2Gi
+        prometheusOperator:
+          nodeSelector:
+            workload: platform
+        kube-state-metrics:
+          nodeSelector:
+            workload: platform
+        prometheus-node-exporter:
+          tolerations:
+            - key: nvidia.com/gpu
+              operator: Exists
+              effect: NoSchedule
+        grafana:
+          nodeSelector:
+            workload: platform
+          persistence:
+            enabled: false
+          admin:
+            existingSecret: grafana-admin
+            userKey: admin-user
+            passwordKey: admin-password
+          sidecar:
+            dashboards:
+              enabled: true
+              searchNamespace: ALL
+            datasources:
+              enabled: true
+          additionalDataSources:
+            - name: Loki
+              type: loki
+              uid: loki
+              url: http://loki-gateway.observability.svc
+              access: proxy
+              jsonData:
+                derivedFields:
+                  - name: TraceID
+                    matcherRegex: "traceID=(\\w+)"
+                    datasourceUid: tempo
+                    url: "$${__value.raw}"
+            - name: Tempo
+              type: tempo
+              uid: tempo
+              url: http://tempo.observability.svc:3200
+              access: proxy
+              jsonData:
+                tracesToLogsV2:
+                  datasourceUid: loki
+        kubeControllerManager:
+          enabled: false
+        kubeScheduler:
+          enabled: false
+        kubeEtcd:
+          enabled: false
+        kubeProxy:
+          enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

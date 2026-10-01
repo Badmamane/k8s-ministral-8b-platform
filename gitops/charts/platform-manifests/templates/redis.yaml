@@ -1,0 +1,46 @@
+# ------ Rate-limit counters for Envoy Gateway (token budgets). Ephemeral by design:
+# ------ a restart resets budgets, which is acceptable for a dev environment.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: envoy-gateway-system
+  labels:
+    app.kubernetes.io/name: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: redis
+    spec:
+      nodeSelector:
+        workload: platform
+      containers:
+        - name: redis
+          image: public.ecr.aws/docker/library/redis:7.4-alpine
+          args: ["--save", "", "--appendonly", "no"]
+          ports:
+            - containerPort: 6379
+              name: redis
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: envoy-gateway-system
+spec:
+  selector:
+    app.kubernetes.io/name: redis
+  ports:
+    - port: 6379
+      targetPort: redis

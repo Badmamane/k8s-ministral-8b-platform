@@ -1,0 +1,46 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: slurm-operator
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/slinkyproject/charts
+    chart: slurm-operator
+    targetRevision: 1.2.2
+    helm:
+      releaseName: slurm-operator
+      valuesObject:
+        crds:
+          enabled: false
+        operator:
+          replicas: 1
+          nodeSelector:
+            workload: platform
+          metricsPort: 8080
+          logLevel: info
+        webhook:
+          replicas: 1
+          nodeSelector:
+            workload: platform
+        certManager:
+          enabled: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: slurm-operator
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

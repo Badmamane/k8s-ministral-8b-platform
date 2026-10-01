@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: slurm-manifests
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            argocd.argoproj.io/secret-type: cluster
+  template:
+    metadata:
+      name: slurm-manifests
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/Badmamane/k8s-ministral-8b-platform.git
+        targetRevision: master
+        path: gitops/charts/slurm-manifests
+        helm:
+          releaseName: slurm-manifests
+          valuesObject:
+            rdsSecretArn: '{{ .metadata.annotations.rds_secret_arn }}'
+      destination:
+        server: '{{ .server }}'
+        namespace: slurm
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+        retry:
+          limit: 5
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 5m

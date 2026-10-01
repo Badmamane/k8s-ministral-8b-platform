@@ -1,0 +1,39 @@
+name: nightly-sweep
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 1 * * *"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: ${{ vars.ENV }}-cluster
+  cancel-in-progress: false
+
+env:
+  ENV: ${{ vars.ENV }}
+  AWS_REGION: ${{ vars.AWS_REGION }}
+
+jobs:
+  sweep:
+    # ------ Runs only once the bootstrap outputs are configured as repository variables.
+    if: vars.AWS_LIFECYCLE_ROLE_ARN != ''
+    runs-on: ubuntu-slim
+    environment: dev-deploy
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        with:
+          role-to-assume: ${{ vars.AWS_LIFECYCLE_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-duration-seconds: 7200
+      - name: Detect runner IP
+        run: echo "RUNNER_CIDR=$(curl -fsS https://checkip.amazonaws.com)/32" >> "$GITHUB_ENV"
+      - run: make admit-runner
+      - run: DESTROY=1 make destroy
+      - run: make orphan-check

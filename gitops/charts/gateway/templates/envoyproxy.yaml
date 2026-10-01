@@ -1,0 +1,25 @@
+# ------ Data-plane settings: one internet-facing NLB behind the ingress security group,
+# ------ proxies on the platform node group.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: edge
+  namespace: gateway
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyDeployment:
+        replicas: 1
+        pod:
+          nodeSelector:
+            workload: platform
+      envoyService:
+        type: LoadBalancer
+        loadBalancerClass: service.k8s.aws/nlb
+        annotations:
+          service.beta.kubernetes.io/aws-load-balancer-type: external
+          service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+          service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+          service.beta.kubernetes.io/aws-load-balancer-security-groups: {{ .Values.ingressSecurityGroupId | quote }}
+          service.beta.kubernetes.io/aws-load-balancer-manage-backend-security-group-rules: "true"

@@ -1,0 +1,42 @@
+# ------ Terraform / Terragrunt
+.terraform/
+.terragrunt-cache/
+*.tfstate
+*.tfstate.*
+*.tfplan
+plan.txt
+crash.log
+crash.*.log
+*_override.tf
+*_override.tf.json
+backend.tf
+provider.tf
+provider_helm.tf
+
+# ------ Variable files that may hold secrets (the per-account tfvars are committed)
+*.auto.tfvars
+*.auto.tfvars.json
+terraform.tfvars
+secrets.tfvars
+
+# ------ Credentials and keys, in case one ever lands in the tree
+*.pem
+*.key
+*.p12
+*.pfx
+kubeconfig*
+.env
+.env.*
+.envrc
+.mise.local.toml
+
+# ------ Helm
+charts/*.tgz
+Chart.lock
+
+# ------ Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+modules/**/.terraform.lock.hcl

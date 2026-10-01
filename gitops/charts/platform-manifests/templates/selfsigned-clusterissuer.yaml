@@ -1,0 +1,7 @@
+# ------ Self-signed issuer for the edge certificate until a domain and ACM/ACME exist.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned
+spec:
+  selfSigned: {}

@@ -1,0 +1,10 @@
+terraform 1.16.2
+terragrunt 0.93.7
+tflint 0.59.1
+kubectl 1.35.8
+helm 3.18.6
+kubeconform 0.8.0
+argocd 3.5.2
+pipx:checkov 3.3.17
+pipx:pre-commit 4.6.2
+pipx 1.17.2

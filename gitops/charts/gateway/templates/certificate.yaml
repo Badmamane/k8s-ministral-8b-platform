@@ -1,0 +1,16 @@
+# ------ Self-signed edge certificate until a domain exists; clients pin or skip verification.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: edge-tls
+  namespace: gateway
+spec:
+  secretName: edge-tls
+  commonName: k8s-ministral-8b
+  duration: 2160h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    kind: ClusterIssuer
+    name: selfsigned

@@ -1,0 +1,87 @@
+apiVersion: nvidia.com/v1beta1
+kind: DynamoGraphDeployment
+metadata:
+  name: ministral
+  namespace: inference
+spec:
+  backendFramework: vllm
+  components:
+    - name: frontend
+      type: frontend
+      replicas: 1
+      podTemplate:
+        spec:
+          nodeSelector:
+            workload: platform
+          containers:
+            - name: main
+              image: nvcr.io/nvidia/ai-dynamo/dynamo-frontend:{{ .Values.dynamoVersion }}
+              env:
+                - name: DYN_ROUTER_MODE
+                  value: kv
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 512Mi
+                limits:
+                  memory: 1Gi
+    - name: worker
+      type: worker
+      replicas: {{ .Values.workerReplicas }}
+      sharedMemorySize: 2Gi
+      podTemplate:
+        spec:
+          nodeSelector:
+            workload: gpu
+          tolerations:
+            - key: nvidia.com/gpu
+              operator: Exists
+              effect: NoSchedule
+          volumes:
+            - name: hf-cache
+              emptyDir:
+                sizeLimit: 25Gi
+          # ------ FP8 needs an Ada-class GPU; the pool also offers A10G for batch jobs.
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: karpenter.k8s.aws/instance-gpu-name
+                        operator: In
+                        values:
+                          - {{ .Values.gpuName }}
+          containers:
+            - name: main
+              image: nvcr.io/nvidia/ai-dynamo/vllm-runtime:{{ .Values.dynamoVersion }}
+              command:
+                - python3
+                - -m
+                - dynamo.vllm
+              args:
+                - --model
+                - {{ .Values.model }}
+                - --tokenizer-mode
+                - mistral
+                - --config-format
+                - mistral
+                - --load-format
+                - mistral
+                - --limit-mm-per-prompt
+                - '{"image": 0}'
+                - --max-model-len
+                - {{ .Values.maxModelLen | quote }}
+                - --gpu-memory-utilization
+                - {{ .Values.gpuMemoryUtilization | quote }}
+                - --kv-events-config
+                - '{"publisher":"zmq","topic":"kv-events","endpoint":"tcp://*:20080","enable_kv_cache_events":true}'
+              volumeMounts:
+                - name: hf-cache
+                  mountPath: /home/dynamo/.cache/huggingface
+              resources:
+                requests:
+                  cpu: "2"
+                  memory: 8Gi
+                  ephemeral-storage: 30Gi
+                limits:
+                  nvidia.com/gpu: "1"

@@ -1,0 +1,4 @@
+# ------ Every value is supplied by the ApplicationSet from the in-cluster Secret.
+region: ""
+environment: ""
+storageKmsKeyArn: ""

@@ -1,0 +1,56 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager-controller
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://charts.jetstack.io
+    chart: cert-manager
+    targetRevision: v1.21.2
+    helm:
+      releaseName: cert-manager
+      valuesObject:
+        crds:
+          enabled: true
+          keep: false
+        global:
+          leaderElection:
+            namespace: cert-manager
+        nodeSelector:
+          workload: platform
+        webhook:
+          nodeSelector:
+            workload: platform
+        cainjector:
+          nodeSelector:
+            workload: platform
+        startupapicheck:
+          nodeSelector:
+            workload: platform
+        serviceAccount:
+          create: true
+          name: cert-manager
+        prometheus:
+          enabled: true
+          servicemonitor:
+            enabled: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

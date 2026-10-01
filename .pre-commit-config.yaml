@@ -1,0 +1,49 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+        files: ^gitops/.*\.ya?ml$
+        exclude: ^gitops/charts/.*/templates/
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-added-large-files
+      - id: detect-private-key
+      - id: detect-aws-credentials
+        args: [--allow-missing-credentials]
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
+        files: ^(gitops|\.github)/.*\.ya?ml$
+        exclude: ^gitops/charts/.*/templates/
+
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.109.1
+    hooks:
+      - id: terraform_fmt
+      - id: terraform_validate
+        files: ^modules/
+      - id: terraform_tflint
+        args: [--args=--config=__GIT_WORKING_DIR__/.tflint.hcl]
+      - id: terraform_validate
+        files: ^modules/
+        args:
+          - --hook-config=--retry-once-with-cleanup=true
+          - --tf-init-args=-lockfile=readonly
+
+  - repo: https://github.com/gruntwork-io/pre-commit
+    rev: v0.1.30
+    hooks:
+      - id: terragrunt-hcl-fmt
+
+  - repo: local
+    hooks:
+      - id: kubeconform-charts
+        name: kubeconform (gitops charts, rendered)
+        entry: bash -c 'set -o pipefail; for c in gitops/charts/*/; do helm template "$c" | kubeconform -strict -ignore-missing-schemas -summary || exit 1; done'
+        language: system
+        files: ^gitops/charts/
+        pass_filenames: false

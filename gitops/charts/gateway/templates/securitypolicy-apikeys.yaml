@@ -1,0 +1,23 @@
+# ------ Every request on the HTTPS listener needs a known API key; the client id is
+# ------ forwarded for rate limiting and the key is stripped before the backend.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: api-keys
+  namespace: gateway
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: edge
+      sectionName: https
+  apiKeyAuth:
+    credentialRefs:
+      - group: ""
+        kind: Secret
+        name: gateway-api-keys
+    extractFrom:
+      - headers:
+          - x-api-key
+    forwardClientIDHeader: x-client-id
+    sanitize: true

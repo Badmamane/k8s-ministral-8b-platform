@@ -1,0 +1,12 @@
+clusterName: ""
+nodeRole: ""
+kmsKeyArn: ""
+tags: {}
+amiAlias: al2023@latest
+diskSizeGb: 100
+families: [g6]
+sizes: [xlarge]
+capacityTypes: [spot]
+gpuLimit: 1
+expireAfter: 720h
+consolidateAfter: 60s

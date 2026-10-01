@@ -1,0 +1,50 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: dynamo-operator
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: nvcr.io/nvidia/ai-dynamo
+    chart: dynamo-platform
+    targetRevision: 1.4.2
+    helm:
+      releaseName: dynamo-platform
+      valuesObject:
+        # ------ Kubernetes-API discovery; etcd and NATS are not installed (chart defaults kept explicit).
+        global:
+          etcd:
+            install: false
+          nats:
+            install: false
+        dynamo-operator:
+          discoveryBackend: kubernetes
+          controllerManager:
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - key: workload
+                          operator: In
+                          values:
+                            - platform
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: dynamo-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

@@ -1,0 +1,108 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: loki
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            argocd.argoproj.io/secret-type: cluster
+  template:
+    metadata:
+      name: loki
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: default
+      source:
+        repoURL: https://grafana-community.github.io/helm-charts
+        chart: loki
+        targetRevision: 18.12.1
+        helm:
+          releaseName: loki
+          valuesObject:
+            deploymentMode: SingleBinary
+            loki:
+              auth_enabled: false
+              commonConfig:
+                replication_factor: 1
+              schemaConfig:
+                configs:
+                  - from: "2024-01-01"
+                    store: tsdb
+                    object_store: s3
+                    schema: v13
+                    index:
+                      prefix: index_
+                      period: 24h
+              storage:
+                type: s3
+                bucketNames:
+                  chunks: '{{ .metadata.annotations.loki_bucket }}'
+                  ruler: '{{ .metadata.annotations.loki_bucket }}'
+                  admin: '{{ .metadata.annotations.loki_bucket }}'
+                s3:
+                  region: '{{ .metadata.annotations.region }}'
+              limits_config:
+                retention_period: 168h
+              compactor:
+                retention_enabled: true
+                delete_request_store: s3
+            singleBinary:
+              replicas: 1
+              nodeSelector:
+                workload: platform
+              persistence:
+                enabled: true
+                storageClass: gp3
+                size: 10Gi
+                enableStatefulSetAutoDeletePVC: true
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 512Mi
+                limits:
+                  memory: 1Gi
+            serviceAccount:
+              create: true
+              name: loki
+            backend:
+              replicas: 0
+            read:
+              replicas: 0
+            write:
+              replicas: 0
+            gateway:
+              enabled: true
+              nodeSelector:
+                workload: platform
+            chunksCache:
+              enabled: false
+            resultsCache:
+              enabled: false
+            lokiCanary:
+              enabled: false
+            test:
+              enabled: false
+            monitoring:
+              serviceMonitor:
+                enabled: true
+      destination:
+        server: '{{ .server }}'
+        namespace: observability
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+        retry:
+          limit: 5
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 5m

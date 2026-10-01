@@ -1,0 +1,4 @@
+# ------ CKV_TF_1 wants git sources pinned by commit hash; every module here is
+# ------ a versioned terraform-aws-modules registry source, tracked by Renovate.
+skip-check:
+  - CKV_TF_1

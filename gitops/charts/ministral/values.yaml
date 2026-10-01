@@ -1,0 +1,6 @@
+dynamoVersion: 1.4.2
+model: mistralai/Ministral-3-8B-Instruct-2512
+maxModelLen: 16384
+gpuMemoryUtilization: "0.90"
+gpuName: l4
+workerReplicas: 2

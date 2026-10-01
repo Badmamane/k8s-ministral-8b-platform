@@ -1,0 +1,12 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: slurm-operator
+  namespace: slurm-operator
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: slurm-operator
+  podMetricsEndpoints:
+    - port: metrics
+      interval: 30s

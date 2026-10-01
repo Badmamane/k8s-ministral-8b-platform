@@ -1,0 +1,5 @@
+apiVersion: v2
+name: slurm-manifests
+description: Plain Kubernetes objects of the slurm group, templated with environment values
+type: application
+version: 0.1.0
